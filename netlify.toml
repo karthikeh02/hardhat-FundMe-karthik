@@ -1,0 +1,10 @@
+[build]
+publish = "html-fund-me" # This is where Netlify will look for your frontend files
+
+[build.environment]
+NODE_ENV = "production"
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
