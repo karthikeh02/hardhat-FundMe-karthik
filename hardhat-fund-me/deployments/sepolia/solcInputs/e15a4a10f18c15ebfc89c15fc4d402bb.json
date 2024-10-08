@@ -1,0 +1,42 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(\n    uint80 _roundId\n  ) external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n\n  function latestRoundData()\n    external\n    view\n    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n}\n"
+    },
+    "contracts/FundMe.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.21;\n\n// anyone want to fund the contract\n//only the owner can withdraw the amount\n// for funds the minimum amnount is required in the usd\nimport \"contracts/PriceConverter.sol\";\n\nerror NotOwner();\n\ncontract FundMe {\n    using PriceConvertor for uint256;\n\n    uint256 public constant MINIMUM_USD = 50 * 1e18;\n\n    address[] public funders;\n    mapping(address => uint256) public addressToAmountFunded;\n\n    address public immutable i_owner;\n\n    AggregatorV3Interface public priceFeed;\n\n    constructor(address priceFeedAddress) {\n        i_owner = msg.sender;\n        priceFeed = AggregatorV3Interface(priceFeedAddress);\n        // single equal setting the msg.sender in owner variable\n    }\n\n    function fund() public payable {\n        // want to set min imum value in usd\n        // 1. How do we send ETH to this contract?\n        require(\n            msg.value.getConversionRate(priceFeed) >= MINIMUM_USD,\n            \"Didn't send enough\"\n        );\n        funders.push(msg.sender);\n        addressToAmountFunded[msg.sender] = msg.value;\n\n        // va denote pannuthu and then 1e18 vandhu oru 1 ETH\n        // 1 * 10 ** 18\n        //this 'require' keyword is a checker\n    }\n\n    function withdraw() public onlyOwner {\n        // require(msg.sender == owner,\"Sender is not the Owner!\");\n        // double equals denote checking the variable that it has\n\n        for (\n            uint256 funderIndex = 0;\n            funderIndex < funders.length;\n            funderIndex++\n        ) {\n            address funder = funders[funderIndex];\n            addressToAmountFunded[funder] = 0;\n        }\n        //reset the array\n        funders = new address[](0);\n        // actually withdraw the funds\n\n        //transfer\n\n        // msg.sender = address\n        // payable(msg.sender) = payable address\n        // payable(msg.sender).transfer(address(this).balance);\n        // send\n        //   bool sendSuccess = payable(msg.sender).send(address(this).balance);\n        //   require(sendSuccess,\"Send Failed\");\n        //call\n        (bool callSuccess, ) = payable(msg.sender).call{\n            value: address(this).balance\n        }(\"\");\n        require(callSuccess, \"call Failed\");\n    }\n\n    modifier onlyOwner() {\n        //require(msg.sender == i_owner,\"Sender is not Owner\");\n        if (msg.sender != i_owner) {\n            revert NotOwner();\n        }\n        _;\n    }\n\n    // what happens if someone sends this contract EtH without calling the fund function\n    receive() external payable {\n        fund();\n    }\n\n    fallback() external payable {\n        fund();\n    }\n}\n"
+    },
+    "contracts/PriceConverter.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.21;\n\nimport \"@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol\";\n\nlibrary PriceConvertor {\n    function getPrice(\n        AggregatorV3Interface priceFeed\n    ) internal view returns (uint256) {\n        //ABI -\n        // Address - 0x694AA1769357215DE4FAC081bf1f309aDC325306\n        (, int256 answer, , , ) = priceFeed.latestRoundData();\n        return uint256(answer * 1e10);\n\n        // there is a technically other ways to implement this\n    }\n\n    function getConversionRate(\n        uint256 ethAmount,\n        AggregatorV3Interface priceFeed\n    ) internal view returns (uint256) {\n        uint256 ethPrice = getPrice(priceFeed);\n        uint256 ethAmountInUsd = (ethPrice * ethAmount) / 1e18;\n        return ethAmountInUsd;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "evmVersion": "paris",
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
