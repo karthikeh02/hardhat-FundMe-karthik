@@ -1,18 +1,30 @@
-
-node_modules
+﻿
+# ---- added by archive prep ----
+node_modules/
 .env
-
-# Hardhat files
-/cache
-/artifacts
-
-# TypeChain files
-/typechain
-/typechain-types
-
-# solidity-coverage files
-/coverage
-/coverage.json
-
-# Hardhat Ignition default folder for deployments against a local node
-ignition/deployments/chain-31337
+.env.*
+!.env.example
+!.env.sample
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+!cacert.pem
+dist/
+build/
+out/
+.next/
+.turbo/
+.cache/
+cache/
+artifacts/
+typechain-types/
+coverage/
+__pycache__/
+venv/
+.venv/
+target/
+.gradle/
+.DS_Store
+*.log

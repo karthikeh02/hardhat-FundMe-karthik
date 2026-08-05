@@ -2,7 +2,7 @@ const { ethers } = require("ethers")
 
 async function main() {
     const provider = new ethers.providers.JsonRpcProvider(
-        "https://eth-sepolia.g.alchemy.com/v2/fIAZ3IuembzfHFgwusWs4-3w1J59xKqI"
+        "https://eth-sepolia.g.alchemy.com/v2/UbtfldzyGgwYOSYeiw0y8YZF1V12brB3a"
     )
 
     const network = await provider.getNetwork()

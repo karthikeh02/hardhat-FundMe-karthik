@@ -1,22 +1,306 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <title>Fund Me App</title>
-    </head>
-    <body>
-        Hello!
-        <script src="./index.js" type="module"></script>
-        <!-- <script src="https://cdn.ethers.io/lib/ethers-5.6.umd.min.js"></script> -->
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Wallet DApp</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      min-height: 100vh;
+    }
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      padding: 30px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    button {
+      background: linear-gradient(45deg, #ff6b6b, #feca57);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      margin: 8px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: transform 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+    }
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+      transform: none;
+    }
+    input {
+      padding: 10px;
+      margin: 8px;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      width: 200px;
+    }
+    .status {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .connected {
+      background: rgba(40, 167, 69, 0.3);
+      border: 2px solid #28a745;
+    }
+    .disconnected {
+      background: rgba(220, 53, 69, 0.3);
+      border: 2px solid #dc3545;
+    }
+    #output {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 20px;
+      min-height: 200px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+    h1, h2, h3 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .wallet-section, .contract-section {
+      margin: 30px 0;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Simple Wallet DApp</h1>
+    
+    <div class="wallet-section">
+      <h2>🔗 Connect Wallet</h2>
+      <button id="connectButton">Connect MetaMask</button>
+      
+      <div id="walletStatus" class="status disconnected">
+        <strong>Status:</strong> <span id="walletAddress">Click Connect to start</span>
+      </div>
+    </div>
 
-        <!-- buttons -->
-        <button id="connectButton">Connect</button>
-        <button id="fundButton">Fund</button>
-        <button id="balanceButton">getBalance</button>
-        <button id="withdrawButton">Withdraw</button>
-        <button id="getOwnerButton">Get Owner Address</button>
+    <div class="contract-section">
+      <h3>💰 Contract Actions</h3>
+      <div>
+        <input id="ethAmount" type="number" step="0.001" placeholder="Amount (e.g., 0.01)" />
+        <br><br>
+        <button id="fundButton" disabled>💸 Fund Contract</button>
+        <button id="balanceButton" disabled>💰 Check Balance</button>
+        <button id="withdrawButton" disabled>🏦 Withdraw</button>
+        <button id="getOwnerButton" disabled>👤 Get Owner</button>
+      </div>
+    </div>
 
-        <!-- form -->
-        <label for="fund">ETH Amount</label>
-        <input id="ethAmount" placeholder="0.1" />
-    </body>
+    <div id="output">🎯 Ready to connect! Click the button above...</div>
+  </div>
+
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.14.0/ethers.umd.min.js"></script>
+<script>
+  // Contract details
+  const CONTRACT_ADDRESS = "0xF043E2eF7568f62D4e010C3765fB8f24A4CC046d";
+  const CONTRACT_ABI = [
+    "function fund() public payable",
+    "function withdraw() public",
+    "function getOwner() public view returns (address)",
+    "function getAddressToAmountFunded(address) public view returns (uint256)"
+  ];
+
+  let provider = null;
+  let signer = null;
+  let contract = null;
+  let userAccount = null;
+
+  function log(message) {
+    const output = document.getElementById("output");
+    const time = new Date().toLocaleTimeString();
+    output.textContent += `[${time}] ${message}\n`;
+    output.scrollTop = output.scrollHeight;
+    console.log(message);
+  }
+
+  function updateUI(connected) {
+    const status = document.getElementById("walletStatus");
+    const address = document.getElementById("walletAddress");
+    const buttons = ["fundButton", "balanceButton", "withdrawButton", "getOwnerButton"];
+    if (connected && userAccount) {
+      status.className = "status connected";
+      address.textContent = `Connected: ${userAccount.slice(0, 6)}...${userAccount.slice(-4)}`;
+      buttons.forEach(id => document.getElementById(id).disabled = false);
+    } else {
+      status.className = "status disconnected";
+      address.textContent = "Not connected";
+      buttons.forEach(id => document.getElementById(id).disabled = true);
+    }
+  }
+
+  async function connectWallet() {
+    log("🔍 Checking for MetaMask...");
+    if (typeof window.ethereum === 'undefined') {
+      alert("❌ MetaMask not found! Please install MetaMask browser extension.");
+      log("❌ MetaMask not installed");
+      return;
+    }
+    try {
+      log("📱 Requesting wallet connection...");
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts || accounts.length === 0) {
+        log("❌ No accounts found");
+        return;
+      }
+      userAccount = accounts[0];
+      log(`✅ Connected to account: ${userAccount}`);
+      provider = new ethers.BrowserProvider(window.ethereum);
+      signer = await provider.getSigner();
+      const network = await provider.getNetwork();
+      log(`🌐 Connected to: ${network.name} (Chain ID: ${network.chainId})`);
+      if (network.chainId !== 11155111) {
+        log("⚠️  WARNING: Please switch to Sepolia testnet!");
+        log("💡 Go to MetaMask > Networks > Add Sepolia");
+      }
+      contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      log("📋 Contract instance created");
+      updateUI(true);
+      log("🎉 Connection successful!");
+    } catch (error) {
+      log(`❌ Connection failed: ${error.message}`);
+      if (error.code === 4001) log("🚫 User rejected connection");
+      if (error.code === -32002) log("⏳ Connection request already pending - check MetaMask");
+      updateUI(false);
+    }
+  }
+
+  async function getBalance() {
+    if (!provider) {
+      log("❌ Connect wallet first!");
+      return;
+    }
+    try {
+      log("📊 Getting contract balance...");
+      const balance = await provider.getBalance(CONTRACT_ADDRESS);
+      const ethBalance = ethers.formatEther(balance);
+      log(`💰 Contract balance: ${ethBalance} ETH`);
+    } catch (error) {
+      log(`❌ Balance check failed: ${error.message}`);
+    }
+  }
+
+  async function fundContract() {
+    if (!contract || !signer) {
+      log("❌ Connect wallet first!");
+      return;
+    }
+    const amount = document.getElementById("ethAmount").value;
+    if (!amount || parseFloat(amount) <= 0) {
+      log("❌ Enter a valid amount (e.g., 0.01)");
+      return;
+    }
+    try {
+      log(`💸 Funding contract with ${amount} ETH...`);
+      const tx = await contract.fund({
+        value: ethers.parseEther(amount)
+      });
+      log(`⏳ Transaction sent: ${tx.hash}`);
+      log("⏳ Waiting for confirmation...");
+      const receipt = await tx.wait();
+      log(`✅ Funding successful! Block: ${receipt.blockNumber}`);
+      setTimeout(getBalance, 1000);
+    } catch (error) {
+      log(`❌ Funding failed: ${error.message}`);
+      if (error.code === 4001) log("🚫 User rejected transaction");
+      if (error.message.includes("insufficient funds")) log("💸 Insufficient ETH balance");
+    }
+  }
+
+  async function withdraw() {
+    if (!contract) {
+      log("❌ Connect wallet first!");
+      return;
+    }
+    try {
+      log("🏦 Initiating withdrawal...");
+      const tx = await contract.withdraw();
+      log(`⏳ Transaction sent: ${tx.hash}`);
+      log("⏳ Waiting for confirmation...");
+      const receipt = await tx.wait();
+      log(`✅ Withdrawal successful! Block: ${receipt.blockNumber}`);
+      setTimeout(getBalance, 1000);
+    } catch (error) {
+      log(`❌ Withdrawal failed: ${error.message}`);
+      if (error.message.includes("NotOwner")) log("🚫 Only contract owner can withdraw");
+    }
+  }
+
+  async function getOwner() {
+    if (!contract) {
+      log("❌ Connect wallet first!");
+      return;
+    }
+    try {
+      log("👤 Getting contract owner...");
+      const owner = await contract.getOwner();
+      log(`👑 Contract owner: ${owner}`);
+      if (userAccount && owner.toLowerCase() === userAccount.toLowerCase()) {
+        log("🎉 You are the contract owner!");
+      } else {
+        log("ℹ️  You are not the contract owner");
+      }
+    } catch (error) {
+      log(`❌ Failed to get owner: ${error.message}`);
+    }
+  }
+
+  // Event listeners
+  document.getElementById("connectButton").onclick = connectWallet;
+  document.getElementById("balanceButton").onclick = getBalance;
+  document.getElementById("fundButton").onclick = fundContract;
+  document.getElementById("withdrawButton").onclick = withdraw;
+  document.getElementById("getOwnerButton").onclick = getOwner;
+
+  // Listen for account changes
+  if (typeof window.ethereum !== 'undefined') {
+    window.ethereum.on('accountsChanged', function (accounts) {
+      if (accounts.length === 0) {
+        log("🔌 Wallet disconnected");
+        updateUI(false);
+        provider = null;
+        signer = null;
+        contract = null;
+        userAccount = null;
+      } else {
+        log("🔄 Account changed, please reconnect");
+        updateUI(false);
+      }
+    });
+    window.ethereum.on('chainChanged', function (chainId) {
+      log(`🌐 Network changed to: ${parseInt(chainId, 16)}`);
+      log("🔄 Please reconnect your wallet");
+      updateUI(false);
+    });
+  }
+  log("🎯 DApp ready! Click 'Connect MetaMask' to start");
+</script>
+
+
+  <!-- Load ethers.js from working CDN -->
+</body>
 </html>
